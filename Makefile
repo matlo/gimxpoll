@@ -5,7 +5,7 @@ else
 OBJECTS += $(patsubst %.c,%.o,$(wildcard src/posix/*.c))
 endif
 
-CPPFLAGS += -Iinclude -I../
+CPPFLAGS += -Iinclude
 CFLAGS += -fPIC
 
 ifeq ($(OS),Windows_NT)
