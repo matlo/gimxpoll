@@ -5,114 +5,131 @@
 
 #include <gpoll.h>
 #include <gimxcommon/include/gerror.h>
+#include <gimxcommon/include/glist.h>
 
 #include <stdio.h>
 #include <poll.h>
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
 
-#define MAX_SOURCES 1024
+struct poll_source {
+    int fd;
+    void * user;
+    int (*fp_read)(void * user);
+    int (*fp_write)(void * user);
+    int (*fp_close)(void * user);
+    int events;
+    GLIST_LINK(struct poll_source)
+};
 
-static struct {
-  int user;
-  int (*fp_read)(int);
-  int (*fp_write)(int);
-  int (*fp_close)(int);
-  short int event;
-} sources[MAX_SOURCES] = { };
+static unsigned int nb_sources = 0;
 
-static int max_source = 0;
+static void gpoll_close_internal(struct poll_source * source);
 
-int gpoll_register_fd(int fd, int user, const GPOLL_CALLBACKS * callbacks) {
+GLIST_INST(struct poll_source, sources, gpoll_close_internal)
 
-  if (!callbacks->fp_close) {
-    PRINT_ERROR_OTHER("fp_close is mandatory")
-    return -1;
-  }
-  if (!callbacks->fp_read && !callbacks->fp_write) {
-    PRINT_ERROR_OTHER("fp_read and fp_write are NULL")
-    return -1;
-  }
-  if (fd < 0 || fd >= MAX_SOURCES) {
-    PRINT_ERROR_OTHER("fd is invalid")
-    return -1;
-  }
-  sources[fd].user = user;
-  if (callbacks->fp_read) {
-    sources[fd].event |= POLLIN;
-    sources[fd].fp_read = callbacks->fp_read;
-  }
-  if (callbacks->fp_write) {
-    sources[fd].event |= POLLOUT;
-    sources[fd].fp_write = callbacks->fp_write;
-  }
-  sources[fd].fp_close = callbacks->fp_close;
-  if (fd > max_source) {
-    max_source = fd;
-  }
-  return 0;
+static void gpoll_close_internal(struct poll_source * source) {
+
+    GLIST_REMOVE(sources, source)
+    free(source);
+    --nb_sources;
+}
+
+int gpoll_register_fd(int fd, void * user, const GPOLL_CALLBACKS * callbacks) {
+
+    if (!callbacks->fp_close) {
+        PRINT_ERROR_OTHER("fp_close is mandatory")
+        return -1;
+    }
+    if (!callbacks->fp_read && !callbacks->fp_write) {
+        PRINT_ERROR_OTHER("fp_read and fp_write are NULL")
+        return -1;
+    }
+    struct poll_source * source = calloc(1, sizeof(*source));
+    if (source == NULL) {
+        PRINT_ERROR_ALLOC_FAILED("calloc")
+        return -1;
+    }
+    source->fd = fd;
+    source->user = user;
+    source->fp_read = callbacks->fp_read;
+    if (source->fp_read != NULL) {
+        source->events |= POLLIN;
+    }
+    source->fp_write = callbacks->fp_write;
+    if (source->fp_write != NULL) {
+        source->events |= POLLOUT;
+    }
+    source->fp_close = callbacks->fp_close;
+    GLIST_ADD(sources, source)
+    ++nb_sources;
+    return 0;
 }
 
 int gpoll_remove_fd(int fd) {
 
-  if (fd >= 0 && fd < MAX_SOURCES) {
-    memset(sources + fd, 0x00, sizeof(*sources));
-    return 0;
-  }
-  return -1;
+    struct poll_source * current;
+    for (current = GLIST_BEGIN(sources); current != GLIST_END(sources); current = current->next) {
+        if (fd == current->fd) {
+            gpoll_close_internal(current);
+            return 0;
+        }
+    }
+    return -1;
 }
 
-static unsigned int fill_fds(nfds_t nfds, struct pollfd fds[nfds]) {
+static unsigned int fill_fds(nfds_t nfds, struct pollfd fds[nfds], struct poll_source * sources[nfds]) {
 
-  unsigned int pos = 0;
+    unsigned int pos = 0;
 
-  unsigned int i;
-  for (i = 0; i < nfds; ++i) {
-    if (sources[i].event) {
-      fds[pos].fd = i;
-      fds[pos].events = sources[i].event;
-      ++pos;
+    struct poll_source * current;
+    for (current = GLIST_BEGIN(sources); current != GLIST_END(sources) && pos < nfds; current = current->next) {
+        fds[pos].fd = current->fd;
+        fds[pos].events = current->events;
+        sources[pos] = current;
+        ++pos;
     }
-  }
 
-  return pos;
+    return pos;
 }
 
 void gpoll(void) {
 
-  unsigned int i;
-  int res;
+    unsigned int i;
+    int res;
 
-  while (1) {
+    while (1) {
 
-    struct pollfd fds[max_source + 1];
-    nfds_t nfds = fill_fds(max_source + 1, fds);
+        struct pollfd fds[nb_sources];
+        struct poll_source * sources[nb_sources];
+        nfds_t nfds = fill_fds(nb_sources, fds, sources);
 
-    if (poll(fds, nfds, -1) > 0) {
-      for (i = 0; i < nfds; ++i) {
-        if (fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-          res = sources[fds[i].fd].fp_close(sources[fds[i].fd].user);
-          gpoll_remove_fd(fds[i].fd);
-          if (res) {
-            return;
-          }
-          continue;
+        if (poll(fds, nfds, -1) > 0) {
+            for (i = 0; i < nfds; ++i) {
+                if (fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+                    res = sources[i]->fp_close(sources[i]->user);
+                    gpoll_remove_fd(fds[i].fd);
+                    if (res) {
+                        return;
+                    }
+                    continue;
+                }
+                if (fds[i].revents & POLLIN) {
+                    if (sources[i]->fp_read(sources[i]->user)) {
+                        return;
+                    }
+                }
+                if (fds[i].revents & POLLOUT) {
+                    if (sources[i]->fp_write(sources[i]->user)) {
+                        return;
+                    }
+                }
+            }
+        } else {
+            if (errno != EINTR) {
+                PRINT_ERROR_ERRNO("poll")
+            }
         }
-        if (fds[i].revents & POLLIN) {
-          if (sources[fds[i].fd].fp_read(sources[fds[i].fd].user)) {
-            return;
-          }
-        }
-        if (fds[i].revents & POLLOUT) {
-          if (sources[fds[i].fd].fp_write(sources[fds[i].fd].user)) {
-            return;
-          }
-        }
-      }
-    } else {
-      if(errno != EINTR) {
-        PRINT_ERROR_ERRNO("poll")
-      }
     }
-  }
 }
