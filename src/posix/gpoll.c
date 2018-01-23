@@ -6,12 +6,15 @@
 #include <gpoll.h>
 #include <gimxcommon/include/gerror.h>
 #include <gimxcommon/include/glist.h>
+#include <gimxlog/include/glog.h>
 
 #include <stdio.h>
 #include <poll.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+
+GLOG_INST(GLOG_NAME)
 
 struct poll_source {
     int fd;

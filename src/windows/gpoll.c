@@ -12,8 +12,11 @@
 
 #include <gimxcommon/include/gerror.h>
 #include <gimxcommon/include/glist.h>
+#include <gimxlog/include/glog.h>
 
 #define MAX_SOURCES (MAXIMUM_WAIT_OBJECTS-1)
+
+GLOG_INST(GLOG_NAME)
 
 struct poll_source
 {
@@ -228,7 +231,7 @@ void gpoll() {
                 } else {
                     if (NetworkEvents.lNetworkEvents & FD_READ) {
                         if (NetworkEvents.iErrorCode[FD_READ_BIT]) {
-                            PRINT_ERROR_OTHER("iErrorCode[FD_READ_BIT] is set");
+                            PRINT_ERROR_OTHER("iErrorCode[FD_READ_BIT] is set")
                             current->fp_cleanup(current->user);
                         } else {
                             if (current->fp_read(current->user)) {
