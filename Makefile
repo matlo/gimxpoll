@@ -18,5 +18,7 @@ endif
 
 include Makedefs
 
+ifeq ($(OS),Windows_NT)
 gerror.o: ../gimxcommon/src/windows/gerror.c
 	$(COMPILE.c) $(OUTPUT_OPTION) $<
+endif
