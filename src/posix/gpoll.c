@@ -23,10 +23,13 @@ struct poll_source {
     int (*fp_write)(void * user);
     int (*fp_close)(void * user);
     int events;
+    int removed;
     GLIST_LINK(struct poll_source)
 };
 
 static unsigned int nb_sources = 0;
+
+static int polling = 0;
 
 static void gpoll_close_internal(struct poll_source * source);
 
@@ -75,7 +78,11 @@ int gpoll_remove_fd(int fd) {
     struct poll_source * current;
     for (current = GLIST_BEGIN(sources); current != GLIST_END(sources); current = current->next) {
         if (fd == current->fd) {
-            gpoll_close_internal(current);
+            if (polling) {
+                current->removed = 1;
+            } else {
+                gpoll_close_internal(current);
+            }
             return 0;
         }
     }
@@ -97,7 +104,21 @@ static unsigned int fill_fds(nfds_t nfds, struct pollfd fds[nfds], struct poll_s
     return pos;
 }
 
+static void gpoll_remove_fd_defered() {
+
+    struct poll_source * current;
+    for (current = GLIST_BEGIN(sources); current != GLIST_END(sources); current = current->next) {
+        if (current->removed) {
+            struct poll_source * prev = current->prev;
+            gpoll_close_internal(current);
+            current = prev;
+        }
+    }
+}
+
 void gpoll(void) {
+
+    polling = 1;
 
     unsigned int i;
     int res;
@@ -114,25 +135,32 @@ void gpoll(void) {
                     res = sources[i]->fp_close(sources[i]->user);
                     gpoll_remove_fd(fds[i].fd);
                     if (res) {
-                        return;
+                        break;
                     }
                     continue;
                 }
                 if (fds[i].revents & POLLIN) {
                     if (sources[i]->fp_read(sources[i]->user)) {
-                        return;
+                        break;
                     }
                 }
                 if (fds[i].revents & POLLOUT) {
                     if (sources[i]->fp_write(sources[i]->user)) {
-                        return;
+                        break;
                     }
                 }
             }
+            gpoll_remove_fd_defered();
+            if (i < nfds) {
+                break;
+            }
+
         } else {
             if (errno != EINTR) {
                 PRINT_ERROR_ERRNO("poll")
             }
         }
     }
+
+    polling = 0;
 }

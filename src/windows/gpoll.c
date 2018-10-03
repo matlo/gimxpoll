@@ -26,10 +26,13 @@ struct poll_source
   int (*fp_read)(void * user);
   int (*fp_write)(void * user);
   int (*fp_cleanup)(void * user);
+  int removed;
   GLIST_LINK(struct poll_source)
 };
 
 static unsigned int nb_sources = 0;
+
+static int polling = 0;
 
 #define CHECK_NB_SOURCES() \
     if (nb_sources == MAX_SOURCES) { \
@@ -138,7 +141,11 @@ int gpoll_remove_handle(HANDLE handle) {
     struct poll_source * current;
     for (current = GLIST_BEGIN(sources); current != GLIST_END(sources); current = current->next) {
         if (handle == current->handle) {
-            gpoll_close_internal(current);
+            if (polling) {
+                current->removed = 1;
+            } else {
+                gpoll_close_internal(current);
+            }
             return 0;
         }
     }
@@ -150,11 +157,27 @@ int gpoll_remove_fd(int fd) {
     struct poll_source * current;
     for (current = GLIST_BEGIN(sources); current != GLIST_END(sources); current = current->next) {
         if (fd == current->fd) {
-            gpoll_close_internal(current);
+            if (polling) {
+                current->removed = 1;
+            } else {
+                gpoll_close_internal(current);
+            }
             return 0;
         }
     }
     return -1;
+}
+
+static void gpoll_remove_deferred() {
+
+    struct poll_source * current;
+    for (current = GLIST_BEGIN(sources); current != GLIST_END(sources); current = current->next) {
+        if (current->removed) {
+            struct poll_source * prev = current->prev;
+            gpoll_close_internal(current);
+            current = prev;
+        }
+    }
 }
 
 static unsigned int fill_handles(unsigned int nhandles, HANDLE handles[nhandles]) {
@@ -169,6 +192,8 @@ static unsigned int fill_handles(unsigned int nhandles, HANDLE handles[nhandles]
 }
 
 void gpoll() {
+
+    polling = 1;
 
     DWORD result;
     int done = 0;
@@ -256,7 +281,12 @@ void gpoll() {
                 }
             }
         }
+
+        gpoll_remove_deferred();
+
     } while (!done);
+
+    polling = 0;
 }
 
 void gpoll_set_rawinput_callback(int (*callback)()) {
