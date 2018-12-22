@@ -198,6 +198,7 @@ void gpoll() {
 
     DWORD result;
     int done = 0;
+    int rawinput_processed = 0;
 
     do {
         HANDLE handles[nb_sources];
@@ -222,6 +223,7 @@ void gpoll() {
 
         if (rawinput_callback != NULL) {
             if (GetQueueStatus(QS_RAWINPUT)) {
+                rawinput_processed = 1;
                 if (rawinput_callback()) {
                     done = 1;
                     onerror_callback();
@@ -287,6 +289,20 @@ void gpoll() {
         gpoll_remove_deferred();
 
     } while (!done);
+
+    /*
+     * If window messages are not processed after 5s the app will be considered unresponsive,
+     * and captured mouse pointer will be released if task manger is running.
+     * Make sure non-rawinput messages are still processed when there is no rawinput message.
+     * This assumes a timer with a period lower than 5s was registered.
+     */
+
+    if (rawinput_processed == 0 && rawinput_callback != NULL) {
+        if (rawinput_callback()) {
+            done = 1;
+            onerror_callback();
+        }
+    }
 
     polling = 0;
 }
