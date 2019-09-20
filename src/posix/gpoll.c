@@ -45,16 +45,16 @@ static void gpoll_close_internal(struct poll_source * source) {
 int gpoll_register_fd(int fd, void * user, const GPOLL_CALLBACKS * callbacks) {
 
     if (!callbacks->fp_close) {
-        PRINT_ERROR_OTHER("fp_close is mandatory")
+        PRINT_ERROR_OTHER("fp_close is mandatory");
         return -1;
     }
     if (!callbacks->fp_read && !callbacks->fp_write) {
-        PRINT_ERROR_OTHER("fp_read and fp_write are NULL")
+        PRINT_ERROR_OTHER("fp_read and fp_write are NULL");
         return -1;
     }
     struct poll_source * source = calloc(1, sizeof(*source));
     if (source == NULL) {
-        PRINT_ERROR_ALLOC_FAILED("calloc")
+        PRINT_ERROR_ALLOC_FAILED("calloc");
         return -1;
     }
     source->fd = fd;
@@ -157,7 +157,7 @@ void gpoll(void) {
 
         } else {
             if (errno != EINTR) {
-                PRINT_ERROR_ERRNO("poll")
+                PRINT_ERROR_ERRNO("poll");
             }
         }
     }

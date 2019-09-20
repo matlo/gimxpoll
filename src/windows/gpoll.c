@@ -35,10 +35,12 @@ static unsigned int nb_sources = 0;
 static int polling = 0;
 
 #define CHECK_NB_SOURCES() \
-    if (nb_sources == MAX_SOURCES) { \
-        PRINT_ERROR_OTHER("max number of sources reached") \
-        return -1; \
-    }
+    do { \
+        if (nb_sources == MAX_SOURCES) { \
+            PRINT_ERROR_OTHER("max number of sources reached"); \
+            return -1; \
+        } \
+    } while (0)
 
 static void gpoll_close_internal(struct poll_source * source);
 
@@ -65,28 +67,28 @@ static void (*onerror_callback)() = NULL;
 int gpoll_register_fd(int fd, void * user, const GPOLL_CALLBACKS * callbacks) {
 
     if (fd < 0) {
-        PRINT_ERROR_OTHER("fd is invalid")
+        PRINT_ERROR_OTHER("fd is invalid");
         return -1;
     }
     if (!callbacks->fp_close) {
-        PRINT_ERROR_OTHER("fp_close is mandatory")
+        PRINT_ERROR_OTHER("fp_close is mandatory");
         return -1;
     }
     if (!callbacks->fp_read) {
-        PRINT_ERROR_OTHER("fp_read is NULL")
+        PRINT_ERROR_OTHER("fp_read is NULL");
         return -1;
     }
-    CHECK_NB_SOURCES()
+    CHECK_NB_SOURCES();
 
     struct poll_source * source = calloc(1, sizeof(*source));
     if (source == NULL) {
-        PRINT_ERROR_ALLOC_FAILED("calloc")
+        PRINT_ERROR_ALLOC_FAILED("calloc");
         return -1;
     }
 
     HANDLE evt = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (WSAEventSelect(fd, evt, FD_READ | FD_CLOSE) == SOCKET_ERROR) {
-        PRINT_ERROR_OTHER("WSAEventSelect failed.")
+        PRINT_ERROR_OTHER("WSAEventSelect failed.");
         return -1;
     }
 
@@ -105,22 +107,22 @@ int gpoll_register_fd(int fd, void * user, const GPOLL_CALLBACKS * callbacks) {
 int gpoll_register_handle(HANDLE handle, void * user, const GPOLL_CALLBACKS * callbacks) {
 
     if (handle == INVALID_HANDLE_VALUE) {
-        PRINT_ERROR_OTHER("handle is invalid")
+        PRINT_ERROR_OTHER("handle is invalid");
         return -1;
     }
     if (!callbacks->fp_close) {
-        PRINT_ERROR_OTHER("fp_close is mandatory")
+        PRINT_ERROR_OTHER("fp_close is mandatory");
         return -1;
     }
     if (!callbacks->fp_read && !callbacks->fp_write) {
-        PRINT_ERROR_OTHER("fp_read and fp_write are NULL")
+        PRINT_ERROR_OTHER("fp_read and fp_write are NULL");
         return -1;
     }
-    CHECK_NB_SOURCES()
+    CHECK_NB_SOURCES();
 
     struct poll_source * source = calloc(1, sizeof(*source));
     if (source == NULL) {
-        PRINT_ERROR_ALLOC_FAILED("calloc")
+        PRINT_ERROR_ALLOC_FAILED("calloc");
         return -1;
     }
 
@@ -213,7 +215,7 @@ void gpoll() {
         result = MsgWaitForMultipleObjects(count, handles, FALSE, INFINITE, dwWakeMask);
 
         if (result == WAIT_FAILED) {
-            PRINT_ERROR_GETLASTERROR("MsgWaitForMultipleObjects")
+            PRINT_ERROR_GETLASTERROR("MsgWaitForMultipleObjects");
             continue;
         }
 
@@ -243,7 +245,7 @@ void gpoll() {
                  */
                 DWORD lresult = WaitForSingleObject(current->handle, 0);
                 if (lresult == WAIT_FAILED) {
-                    PRINT_ERROR_GETLASTERROR("WaitForSingleObject")
+                    PRINT_ERROR_GETLASTERROR("WaitForSingleObject");
                     continue;
                 } else if (lresult != WAIT_OBJECT_0) {
                     continue;
@@ -255,12 +257,12 @@ void gpoll() {
                  * Network source
                  */
                 if (WSAEnumNetworkEvents(current->fd, current->handle, &NetworkEvents)) {
-                    PRINT_ERROR_GETLASTERROR("WSAEnumNetworkEvents")
+                    PRINT_ERROR_GETLASTERROR("WSAEnumNetworkEvents");
                     current->fp_cleanup(current->user);
                 } else {
                     if (NetworkEvents.lNetworkEvents & FD_READ) {
                         if (NetworkEvents.iErrorCode[FD_READ_BIT]) {
-                            PRINT_ERROR_OTHER("iErrorCode[FD_READ_BIT] is set")
+                            PRINT_ERROR_OTHER("iErrorCode[FD_READ_BIT] is set");
                             current->fp_cleanup(current->user);
                         } else {
                             if (current->fp_read(current->user)) {
