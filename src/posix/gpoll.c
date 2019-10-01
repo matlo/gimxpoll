@@ -24,7 +24,7 @@ struct poll_source {
     int (*fp_close)(void * user);
     int events;
     int removed;
-    GLIST_LINK(struct poll_source)
+    GLIST_LINK(struct poll_source);
 };
 
 static unsigned int nb_sources = 0;
@@ -33,7 +33,8 @@ static int polling = 0;
 
 static void gpoll_close_internal(struct poll_source * source);
 
-GLIST_INST(struct poll_source, sources, gpoll_close_internal)
+GLIST_INST(struct poll_source, sources);
+GLIST_DESTRUCTOR(sources, gpoll_close_internal)
 
 static void gpoll_close_internal(struct poll_source * source) {
 
