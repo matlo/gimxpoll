@@ -53,7 +53,7 @@ static void gpoll_close_internal(struct poll_source * source) {
         WSACloseEvent(source->handle);
     }
 
-    GLIST_REMOVE(sources, source)
+    GLIST_REMOVE(sources, source);
     free(source);
     --nb_sources;
 }
@@ -99,7 +99,7 @@ int gpoll_register_fd(int fd, void * user, const GPOLL_CALLBACKS * callbacks) {
     source->fp_read = callbacks->fp_read;
     source->fp_cleanup = callbacks->fp_close;
 
-    GLIST_ADD(sources, source)
+    GLIST_ADD(sources, source);
     ++nb_sources;
 
     return 0;
@@ -134,7 +134,7 @@ int gpoll_register_handle(HANDLE handle, void * user, const GPOLL_CALLBACKS * ca
     source->fp_write = callbacks->fp_write;
     source->fp_cleanup = callbacks->fp_close;
 
-    GLIST_ADD(sources, source)
+    GLIST_ADD(sources, source);
     ++nb_sources;
 
     return 0;

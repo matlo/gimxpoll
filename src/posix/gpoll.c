@@ -38,7 +38,7 @@ GLIST_DESTRUCTOR(sources, gpoll_close_internal)
 
 static void gpoll_close_internal(struct poll_source * source) {
 
-    GLIST_REMOVE(sources, source)
+    GLIST_REMOVE(sources, source);
     free(source);
     --nb_sources;
 }
@@ -69,7 +69,7 @@ int gpoll_register_fd(int fd, void * user, const GPOLL_CALLBACKS * callbacks) {
         source->events |= POLLOUT;
     }
     source->fp_close = callbacks->fp_close;
-    GLIST_ADD(sources, source)
+    GLIST_ADD(sources, source);
     ++nb_sources;
     return 0;
 }
