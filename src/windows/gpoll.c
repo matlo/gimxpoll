@@ -42,10 +42,7 @@ static int polling = 0;
         } \
     } while (0)
 
-static void gpoll_close_internal(struct poll_source * source);
-
 static GLIST_INST(struct poll_source, sources);
-GLIST_DESTRUCTOR(sources, gpoll_close_internal)
 
 static void gpoll_close_internal(struct poll_source * source) {
 
