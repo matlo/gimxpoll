@@ -49,7 +49,7 @@ int gpoll_remove_fd(int fd);
 #ifdef WIN32
 int gpoll_register_handle(HANDLE handle, void * user, const GPOLL_CALLBACKS * callbacks);
 int gpoll_remove_handle(HANDLE handle);
-void gpoll_set_rawinput_callback(int (*callback)(), void (*onerror)());
+void gpoll_set_rawinput_callback(int (*callback)());
 #endif
 
 #ifdef __cplusplus

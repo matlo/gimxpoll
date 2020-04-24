@@ -56,7 +56,6 @@ static void gpoll_close_internal(struct poll_source * source) {
 }
 
 static int (*rawinput_callback)() = NULL;
-static void (*onerror_callback)() = NULL;
 
 /*
  * Register a socket as an event source.
@@ -226,7 +225,6 @@ void gpoll() {
                 rawinput_processed = 1;
                 if (rawinput_callback()) {
                     done = 1;
-                    onerror_callback();
                 }
             }
         }
@@ -300,15 +298,13 @@ void gpoll() {
     if (rawinput_processed == 0 && rawinput_callback != NULL) {
         if (rawinput_callback()) {
             done = 1;
-            onerror_callback();
         }
     }
 
     polling = 0;
 }
 
-void gpoll_set_rawinput_callback(int (*callback)(), void (*onerror)()) {
+void gpoll_set_rawinput_callback(int (*callback)()) {
 
     rawinput_callback = callback;
-    onerror_callback = onerror;
 }
